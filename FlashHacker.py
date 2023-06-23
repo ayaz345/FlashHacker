@@ -71,7 +71,7 @@ class InstrumentOptionDialog(QDialog):
 	def keyPressEvent(self,e):
 		key=e.key()
 
-		if key==Qt.Key_Return or key==Qt.Key_Enter:
+		if key in [Qt.Key_Return, Qt.Key_Enter]:
 			return
 		else:
 			super(InstrumentOptionDialog,self).keyPressEvent(e)
@@ -118,14 +118,13 @@ class ConfigurationDialog(QDialog):
 	def keyPressEvent(self,e):
 		key=e.key()
 
-		if key==Qt.Key_Return or key==Qt.Key_Enter:
+		if key in [Qt.Key_Return, Qt.Key_Enter]:
 			return
 		else:
 			super(ConfigurationDialog,self).keyPressEvent(e)
 
 	def getRABCDasmPath(self):
-		dir_name=QFileDialog.getExistingDirectory(self,'FileStore Dir')
-		if dir_name:
+		if dir_name := QFileDialog.getExistingDirectory(self, 'FileStore Dir'):
 			self.rabcdasm_line.setText(dir_name)
 
 class TreeItem(object):
@@ -174,9 +173,7 @@ class TreeItem(object):
 		return self.parentItem
 
 	def row(self):
-		if self.parentItem:
-			return self.parentItem.childItems.index(self)
-		return 0
+		return self.parentItem.childItems.index(self) if self.parentItem else 0
 
 class TreeModel(QAbstractItemModel):
 	def __init__(self,root_item,parent=None,checkable=False):
@@ -260,10 +257,11 @@ class TreeModel(QAbstractItemModel):
 		data=[]
 		for l1_item in self.rootItem.children():
 			if l1_item.getChecked()==Qt.Checked:
-				for l2_item in l1_item.children():
-					if l2_item.getChecked()==Qt.Checked:
-						data.append(l2_item.getAssocData())
-
+				data.extend(
+					l2_item.getAssocData()
+					for l2_item in l1_item.children()
+					if l2_item.getChecked() == Qt.Checked
+				)
 		return data
 
 	DebugShowTrace=0
@@ -367,19 +365,13 @@ class TreeModel(QAbstractItemModel):
 
 		if role==Qt.BackgroundRole:
 			item=index.internalPointer()
-			color=item.getAssocData()
-			return color
-
+			return item.getAssocData()
 		elif role==Qt.CheckStateRole and self.Checkable:
 			if index.column()==0:
 				item=index.internalPointer()
 				checked=item.getChecked()
 
-				if checked==Qt.Checked:
-					return Qt.Checked
-				else:
-					return Qt.Unchecked
-
+				return Qt.Checked if checked==Qt.Checked else Qt.Unchecked
 		elif role==Qt.DisplayRole:
 			item=index.internalPointer()
 			return item.data(index.column())
@@ -396,14 +388,8 @@ class TreeModel(QAbstractItemModel):
 		if not self.hasIndex(row,column,parent):
 			return QModelIndex()
 
-		if not parent.isValid():
-			parentItem = self.rootItem
-		else:
-			parentItem=parent.internalPointer()
-
-		childItem=parentItem.child(row)
-
-		if childItem:
+		parentItem = parent.internalPointer() if parent.isValid() else self.rootItem
+		if childItem := parentItem.child(row):
 			return self.createIndex(row,column,childItem)
 		else:
 			return QModelIndex()
@@ -415,22 +401,20 @@ class TreeModel(QAbstractItemModel):
 		childItem=index.internalPointer()
 		parentItem=childItem.parent()
 
-		if parentItem!=None:
-			if parentItem==self.rootItem:
-				return QModelIndex()
-
-			return self.createIndex(parentItem.row(),0,parentItem)
-		return QModelIndex()
+		if parentItem is None:
+			return QModelIndex()
+		else:
+			return (
+				QModelIndex()
+				if parentItem == self.rootItem
+				else self.createIndex(parentItem.row(), 0, parentItem)
+			)
 
 	def rowCount(self,parent):
 		if parent.column()>0:
 			return 0
 
-		if not parent.isValid():
-			parentItem=self.rootItem
-		else:
-			parentItem=parent.internalPointer()
-
+		parentItem = parent.internalPointer() if parent.isValid() else self.rootItem
 		return parentItem.childCount()
 
 	def flags(self,index):
@@ -510,9 +494,9 @@ class MainWindow(QMainWindow):
 
 	DebugFileOperation=0
 	def open(self):
-		filename = QFileDialog.getOpenFileName(self,"Open SWF","","SWF Files (*.swf)|All Files (*.*)")[0]
-
-		if filename:
+		if filename := QFileDialog.getOpenFileName(
+			self, "Open SWF", "", "SWF Files (*.swf)|All Files (*.*)"
+		)[0]:
 			self.openSWF(filename)
 
 	def reload(self):
@@ -547,8 +531,9 @@ class MainWindow(QMainWindow):
 		dialog=QFileDialog()
 		dialog.setFileMode(QFileDialog.Directory)
 		dialog.setOption(QFileDialog.ShowDirsOnly)
-		directory=dialog.getExistingDirectory(self,"Choose Directory",os.getcwd())
-		if directory:
+		if directory := dialog.getExistingDirectory(
+			self, "Choose Directory", os.getcwd()
+		):
 			self.showDir([directory])
 
 	def performInstrument(self):
@@ -593,8 +578,9 @@ class MainWindow(QMainWindow):
 
 	def loadLogTrace(self):
 		self.leftTabWidget.setCurrentIndex(2)
-		filename = QFileDialog.getOpenFileName(self,"Open Log file","","Log Files (*.txt)|All Files (*.*)")[0]
-		if filename:
+		if filename := QFileDialog.getOpenFileName(
+			self, "Open Log file", "", "Log Files (*.txt)|All Files (*.*)"
+		)[0]:
 			repeat_info_list=self.asasm.LoadLogFile(filename)
 
 			[local_names,api_names,multi_names,multi_namels]=self.asasm.GetNames()
@@ -677,10 +663,7 @@ class MainWindow(QMainWindow):
 					msgBox.setDefaultButton(QMessageBox.No)
 					ret = msgBox.exec_()
 
-					show_graph=False
-					if ret==QMessageBox.Yes:
-						show_graph=True
-
+					show_graph = ret == QMessageBox.Yes
 				if show_graph:
 					[disasms,links,address2name]=self.asasm.ConvertMapsToPrintable(methods[refid])				
 					self.graph.DrawFunctionGraph("Target", disasms, links, address2name=address2name)
@@ -739,24 +722,20 @@ class MainWindow(QMainWindow):
 			rabcdasm=os.path.join(self.RABCDAsmPath,"rabcdasm.exe")
 			if not os.path.isfile(rabcdasm):
 				self.RABCDAsmPath=default_rabcdasm_path
-			
+
 				rabcdasm=os.path.join(self.RABCDAsmPath,"rabcdasm.exe")
 				if not os.path.isfile(rabcdasm):
 					self.showConfiguration()
-		
+
 		self.FirstConfigured=False
-		if not settings.contains("General/FirstConfigured"):
-			if self.showConfiguration():
-				self.FirstConfigured=True
-		else:
+		if settings.contains("General/FirstConfigured"):
 			self.FirstConfigured=True
-		
+
+		elif self.showConfiguration():
+			self.FirstConfigured=True
 		self.ShowGraphs=True
 		if settings.contains("General/ShowGraphs"):
-			if settings.value("General/ShowGraphs")=='true':
-				self.ShowGraphs=True
-			else:
-				self.ShowGraphs=False
+			self.ShowGraphs = settings.value("General/ShowGraphs") == 'true'
 							
 	def saveSettings(self):
 		settings = QSettings("DarunGrim LLC", "FlashHacker")

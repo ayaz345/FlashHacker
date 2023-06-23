@@ -24,30 +24,28 @@ class ASASM:
 		state='keyword'
 		for ch in line:
 			if state=='keyword':
-				if ch==' ' or ch=='\t':
+				if ch in [' ', '\t']:
 					if keyword!='':
 						state='parameter'
 					else:
 						prefix+=ch
-				elif ch=='\r' or ch=='\n':
+				elif ch in ['\r', '\n']:
 					break
 				else:
 					keyword+=ch
 
 			elif state=='parameter':
-				if ch=='\r' or ch=='\n':
+				if ch in ['\r', '\n']:
 					break
 				elif ch==';':
 					state='comment'
-				elif parameter=="" and (ch==' ' or ch=='\t'):
-					pass
-				else:
+				elif parameter != "" or ch not in [' ', '\t']:
 					parameter+=ch
 
-			else:
-				if ch=='\r' or ch=='\n':
-					break
+			elif ch in ['\r', '\n']:
+				break
 
+			else:
 				comment+=ch
 
 		return [prefix,keyword,parameter,comment]
@@ -168,10 +166,10 @@ class ASASM:
 		for [prefix,keyword,parameter,comment] in parsed_lines:
 			line=prefix+keyword
 			if parameter:
-				line+=" "+parameter
+				line += f" {parameter}"
 
 			if comment:
-				line+=" ;"+comment
+				line += f" ;{comment}"
 			line+='\n'
 			fd.write(line)
 
@@ -405,12 +403,12 @@ class ASASM:
 		label={}
 		for id in ids:
 			for (keyword,parameter) in blocks[id]:
-				if keyword[0:2]=='if' or keyword=='jump': #TODO: support lookupswitch
+				if keyword[:2] == 'if' or keyword == 'jump': #TODO: support lookupswitch
 					label[int(parameter[1:])]=1
 
 		for id in ids:
 			if labels.has_key(id):
-				parsed_lines.append(['',labels[id]+':','',''])
+				parsed_lines.append(['', f'{labels[id]}:', '', ''])
 			elif label.has_key(id):
 				parsed_lines.append(['','L%d:' % id,'',''])
 
@@ -427,11 +425,11 @@ class ASASM:
 			for file in self.Assemblies[root_dir].keys():
 				(parsed_lines,methods)=self.Assemblies[root_dir][file]
 				for (refid,(blocks,maps,labels,parents,body_parameters)) in methods.items():
-					body_parameter_lines=[]
-					for (key,value) in body_parameters.items():
-						if key!='try':
-							body_parameter_lines.append(['',key,value,''])
-
+					body_parameter_lines = [
+						['', key, value, '']
+						for key, value in body_parameters.items()
+						if key != 'try'
+					]
 					body_parameter_lines.append(['','code','',''])
 					code_parsed_lines=[]
 					if update_code:
@@ -655,7 +653,7 @@ class ASASM:
 	def RetrieveAssembly(self,root_dir,target_file='',target_method=''):
 		self.Assemblies[root_dir]={}
 		for relative_file in self.EnumDir(root_dir):
-			if target_file=='' or target_file==relative_file:
+			if target_file in ['', relative_file]:
 				file=os.path.join(root_dir, relative_file)
 
 				[parsed_lines,methods]=self.RetrieveFile(file,target_method)
@@ -775,11 +773,7 @@ class ASASM:
 		if len(patterns)==0:
 			return True
 
-		for pattern in patterns:
-			if parameter.find(pattern)>=0:
-				return True
-
-		return False
+		return any(parameter.find(pattern)>=0 for pattern in patterns)
 
 	def AddAPITrace(self,methods,filename='',locator={},api_names={},patterns=[]):
 		for refid in methods.keys():
@@ -1167,11 +1161,10 @@ class ASASM:
 
 		ret=[]
 		for [api_name,callers] in api_names.items():
-			found_call=False
-			for [op,root_dir,class_name,refid,block_id,block_line_no] in callers:
-				if op.startswith('call'):
-					found_call=True
-					break
+			found_call = any(
+				op.startswith('call')
+				for [op, root_dir, class_name, refid, block_id, block_line_no] in callers
+			)
 			if found_call:
 				ret.append(api_name)
 		return ret

@@ -165,23 +165,29 @@ class GraphScene(QGraphicsScene):
 					self.addItem(text_item)
 
 	def FindPolygon(self,address):
-		if self.BlockRects.has_key(address):
-			return self.BlockRects[address]
-		return None
+		return self.BlockRects[address] if self.BlockRects.has_key(address) else None
 
 	def FindAddress(self,x,y):
 		y=self.GraphRect[3]-y
 
-		for (address, [start_x, start_y, end_x, end_y]) in self.BlockRects.items():
-			if x > start_x and x < end_x and y > start_y and y < end_y:
-				return address
-
-		return None
+		return next(
+			(
+				address
+				for address, [
+					start_x,
+					start_y,
+					end_x,
+					end_y,
+				] in self.BlockRects.items()
+				if x > start_x and x < end_x and y > start_y and y < end_y
+			),
+			None,
+		)
 
 	def GetColor(self, color_str):
 		if color_str:
 			if color_str[0]=='#':
-				color_name=color_str[0:7]
+				color_name = color_str[:7]
 
 				try:
 					alpha=int(color_str[7:],16)
@@ -242,26 +248,30 @@ class MyGraphicsView(QGraphicsView):
 
 	def DrawFunctionGraph(self,type,disasms,links,match_info=None,address2name=None):
 		flow_grapher=FlowGrapher.FlowGrapher()
-		
-		for (address,[end_address,disasm]) in disasms.items():
-			if match_info!=None:
-				if not match_info.has_key(address):
-					flow_grapher.SetNodeShape("white", "red", "Verdana", "12")
-				else:
-					if match_info[address][1]!=100:
-						flow_grapher.SetNodeShape("black", "yellow", "Verdana", "12")
-					else:
-						flow_grapher.SetNodeShape("black", "white", "Verdana", "12")
-			else:
-				flow_grapher.SetNodeShape("black", "white", "Verdana", "12")
 
+		for (address,[end_address,disasm]) in disasms.items():
+			if (
+				match_info != None
+				and match_info.has_key(address)
+				and match_info[address][1] != 100
+			):
+				flow_grapher.SetNodeShape("black", "yellow", "Verdana", "12")
+			elif (
+				match_info != None
+				and match_info.has_key(address)
+				and match_info[address][1] == 100
+				or match_info is None
+			):
+				flow_grapher.SetNodeShape("black", "white", "Verdana", "12")
+			else:
+				flow_grapher.SetNodeShape("white", "red", "Verdana", "12")
 			if address2name!=None and address2name.has_key(address):
 				name=address2name[address] + "\\l"
 			else:
 				name="%.8X\\l" % address
 
-			disasm=str('\\l'.join(disasm.split('\n')))
-			flow_grapher.AddNode(address, name, str(disasm) )
+			disasm = '\\l'.join(disasm.split('\n'))
+			flow_grapher.AddNode(address, name, disasm)
 
 		for (src,dsts) in links.items():
 			for dst in dsts:
